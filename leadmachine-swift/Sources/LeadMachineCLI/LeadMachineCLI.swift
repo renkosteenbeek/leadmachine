@@ -1,6 +1,5 @@
 import ArgumentParser
 
-@available(macOS 26.0, *)
 @main
 struct LeadMachineCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

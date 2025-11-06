@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 
-@available(macOS 26.0, *)
 struct ProcessCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "process",
@@ -31,7 +30,7 @@ struct ProcessCommand: AsyncParsableCommand {
         let apiClient = GraphAPIClient(authenticator: authenticator, config: config)
         print("✓ API Client initialized")
 
-        let analyzer = try CPQLeadAnalyzer()
+        let analyzer = CPQLeadAnalyzer(apiKey: config.openAIKey)
         print("✓ LLM Analyzer initialized\n")
 
         let mailService = MailService(apiClient: apiClient, analyzer: analyzer, config: config)

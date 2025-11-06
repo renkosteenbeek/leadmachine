@@ -1,9 +1,7 @@
 import Foundation
-import FoundationModels
 
-@available(macOS 26.0, *)
-@Generable
-struct CPQLeadDecision: Equatable {
+struct CPQLeadDecision: Codable, Equatable {
     let isLead: Bool
     let reasoning: String
+    let summary: String
 }

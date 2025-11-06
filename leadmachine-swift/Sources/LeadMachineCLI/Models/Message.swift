@@ -6,7 +6,7 @@ struct Message: Codable {
     let from: EmailAddress
     let receivedDateTime: Date
     let bodyPreview: String
-    let body: MessageBody?
+    var body: MessageBody?
     let isRead: Bool
 
     enum CodingKeys: String, CodingKey {

@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 
-@available(macOS 26.0, *)
 struct RestoreCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "restore",
@@ -23,7 +22,7 @@ struct RestoreCommand: AsyncParsableCommand {
 
         let authenticator = Authenticator(config: config)
         let apiClient = GraphAPIClient(authenticator: authenticator, config: config)
-        let analyzer = try CPQLeadAnalyzer()
+        let analyzer = CPQLeadAnalyzer(apiKey: config.openAIKey)
 
         let mailService = MailService(apiClient: apiClient, analyzer: analyzer, config: config)
 

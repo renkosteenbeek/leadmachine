@@ -1,7 +1,6 @@
 import Foundation
 import Logging
 
-@available(macOS 26.0, *)
 actor MailService {
     private let apiClient: GraphAPIClient
     private let analyzer: CPQLeadAnalyzer
@@ -101,8 +100,9 @@ actor MailService {
         if decision.isLead {
             logger.info("🎯 CPQ Lead detected: \(message.subject)")
             logger.info("   Reasoning: \(decision.reasoning)")
+            logger.info("   Summary: \(decision.summary)")
 
-            let comment = buildForwardComment(reasoning: decision.reasoning)
+            let comment = buildForwardComment(decision: decision)
 
             if !dryRun {
                 try await apiClient.forwardMessage(
@@ -122,15 +122,43 @@ actor MailService {
         return ProcessingResult(wasForwarded: wasForwarded, decision: decision)
     }
 
-    private func buildForwardComment(reasoning: String) -> String {
+    private func buildForwardComment(decision: CPQLeadDecision) -> String {
         """
-        === CPQ LEAD ANALYSE ===
+        <html>
+        <head>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+                .header { background: #667eea; color: #ffffff; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                .header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #ffffff; }
+                .section { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #667eea; }
+                .section h2 { margin-top: 0; color: #667eea; font-size: 18px; }
+                .reasoning { background: #e3f2fd; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #2196f3; }
+                .summary { background: #f1f8e9; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #8bc34a; }
+                .footer { color: #666; font-size: 12px; padding-top: 20px; border-top: 1px solid #ddd; }
+                ul { margin: 10px 0; padding-left: 20px; }
+                li { margin: 5px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🎯 CPQ Lead Gedetecteerd</h1>
+            </div>
 
-        Dit is een potentieel interessante lead voor een CPQ implementatie.
+            <div class="reasoning">
+                <h2>📋 Analyse</h2>
+                <p>\(decision.reasoning)</p>
+            </div>
 
-        Reden: \(reasoning)
+            <div class="summary">
+                <h2>📊 Lead Samenvatting</h2>
+                <p>\(decision.summary.replacingOccurrences(of: "\n", with: "<br>"))</p>
+            </div>
 
-        === ORIGINELE EMAIL HIERONDER ===
+            <div class="footer">
+                <p><strong>Originele email hieronder ↓</strong></p>
+            </div>
+        </body>
+        </html>
         """
     }
 
@@ -177,7 +205,6 @@ struct ProcessingStats: CustomStringConvertible {
     }
 }
 
-@available(macOS 26.0, *)
 struct ProcessingResult {
     let wasForwarded: Bool
     let decision: CPQLeadDecision

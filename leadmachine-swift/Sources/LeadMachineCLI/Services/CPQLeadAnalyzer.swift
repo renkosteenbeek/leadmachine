@@ -1,42 +1,14 @@
 import Foundation
-import FoundationModels
+import OpenAI
 import Logging
 
-@available(macOS 26.0, *)
 actor CPQLeadAnalyzer {
     private let logger = Logger(label: "com.leadmachine.analyzer")
-    private let session: LanguageModelSession
+    private let openAI: OpenAI
 
-    init() throws {
-        let model = SystemLanguageModel.default
-
-        guard case .available = model.availability else {
-            throw AnalyzerError.modelUnavailable
-        }
-
-        session = LanguageModelSession(instructions: {
-            """
-            Je bent een AI assistent die helpt met het identificeren van potentiële CPQ (Configure, Price, Quote) implementatie leads.
-
-            CPQ systemen worden gebruikt door bedrijven voor:
-            - Complexe productconfiguraties
-            - Prijsberekeningen met regels en kortingen
-            - Offerte generatie
-            - Sales automation
-
-            Typische CPQ leads zijn bedrijven die:
-            - Complexe producten/diensten verkopen
-            - Maatwerk configuraties nodig hebben
-            - Veel varianten en opties hebben
-            - Prijsregels en kortingsstructuren gebruiken
-            - Hun sales proces willen automatiseren
-            - ERP integratie nodig hebben
-
-            Geef altijd een duidelijk JA of NEE antwoord met een korte, concrete toelichting.
-            """
-        })
-
-        logger.info("CPQ Lead Analyzer initialized")
+    init(apiKey: String) {
+        self.openAI = OpenAI(apiToken: apiKey)
+        logger.info("CPQ Lead Analyzer initialized (OpenAI GPT-5)")
     }
 
     func analyze(message: Message) async throws -> CPQLeadDecision {
@@ -44,57 +16,147 @@ actor CPQLeadAnalyzer {
 
         logger.info("Analyzing email: \(message.subject)")
 
-        let options = GenerationOptions(
-            sampling: .greedy,
-            temperature: 0.3,
-            maximumResponseTokens: 300
+        let systemPrompt = """
+        Je bent een lead kwalificatie expert voor HiveCPQ - een CPQ/product configurator platform voor manufacturing bedrijven.
+
+        HiveCPQ is geschikt voor producenten met complexe producten die online configuratie, prijsberekening en offertes willen automatiseren.
+
+        ✅ Goede leads:
+        - Manufacturing bedrijven die portals, configurators of productconfiguratiesystemen zoeken
+        - Producenten met varianten, opties of maatwerk in hun producten
+        - Bedrijven die klanten/dealers online hun producten willen laten configureren
+
+        ❌ Geen leads:
+        - Distributeurs, handelsbedrijven of dienstverleners (geen eigen productie)
+        - Standaard CRM/ERP/WMS zonder configuratie-aspect
+        - Eenvoudige producten zonder varianten of complexiteit
+        - Spam en notificaties
+
+        Beoordeel of deze email een potentiële HiveCPQ lead is. Wees kritisch: alleen bedrijven die echt configuratie/portal functionaliteit nodig hebben zijn interessant.
+
+        Geef een JSON response:
+        {
+          "isLead": true/false,
+          "reasoning": "waarom wel/niet relevant (2-4 zinnen)",
+          "summary": "samenvatting als STRING met newlines (\\n) tussen bullet points. Formaat:\\n- Bedrijf: ...\\n- Sector: ...\\n- Budget: ...\\n- Behoeftes: ..."
+        }
+        """
+
+        let systemMessage = ChatQuery.ChatCompletionMessageParam.system(
+            .init(content: .textContent(systemPrompt))
+        )
+        let userMessage = ChatQuery.ChatCompletionMessageParam.user(
+            .init(content: .string(prompt))
         )
 
-        let result = try await session.respond(
-            to: prompt,
-            generating: CPQLeadDecision.self,
-            includeSchemaInPrompt: true,
-            options: options
+        let query = ChatQuery(
+            messages: [systemMessage, userMessage],
+            model: .gpt5,
+            responseFormat: .jsonObject
         )
 
-        logger.info("Analysis result: isLead=\(result.content.isLead)")
+        let result = try await openAI.chats(query: query)
 
-        return result.content
+        guard let choice = result.choices.first,
+              let content = choice.message.content else {
+            throw AnalyzerError.invalidResponse
+        }
+
+        guard let jsonData = content.data(using: .utf8) else {
+            throw AnalyzerError.invalidResponse
+        }
+
+        let decoder = JSONDecoder()
+        let decision = try decoder.decode(CPQLeadDecision.self, from: jsonData)
+
+        logger.info("Analysis result: isLead=\(decision.isLead)")
+
+        return decision
     }
 
     private func buildPrompt(for message: Message) -> String {
         let fromAddress = message.from.emailAddress.address
-        let bodyText = message.bodyPreview
+
+        let bodyText: String
+        if let body = message.body?.content {
+            bodyText = cleanAndTruncateBody(body, maxChars: 4000)
+        } else {
+            bodyText = cleanAndTruncateBody(message.bodyPreview, maxChars: 2000)
+        }
 
         return """
-        Analyseer deze email en bepaal of dit een potentieel interessante lead is voor een CPQ implementatie.
-
         Van: \(fromAddress)
         Onderwerp: \(message.subject)
 
-        Inhoud (preview):
         \(bodyText)
 
-        Geef een analyse in het volgende formaat:
-        - isLead: true of false
-        - reasoning: Een korte, concrete toelichting (max 2-3 zinnen) waarom dit wel of niet een CPQ lead is
-
-        Let specifiek op:
-        - Bedrijven die ERP, CRM, of sales automation zoeken
-        - Vermeldingen van complexe producten of configuraties
-        - Vragen over prijsberekeningen of offertes
-        - B2B context met maatwerk oplossingen
+        Is dit een potentiële HiveCPQ lead?
         """
+    }
+
+    private func cleanAndTruncateBody(_ body: String, maxChars: Int) -> String {
+        var cleaned = body
+
+        cleaned = stripHTML(cleaned)
+
+        cleaned = cleaned
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\t", with: " ")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+
+        while cleaned.contains("  ") {
+            cleaned = cleaned.replacingOccurrences(of: "  ", with: " ")
+        }
+
+        if cleaned.count > maxChars {
+            let truncated = String(cleaned.prefix(maxChars))
+            return truncated + "\n\n[...]"
+        }
+
+        return cleaned
+    }
+
+    private func stripHTML(_ html: String) -> String {
+        var text = html
+
+        text = text.replacingOccurrences(of: "<style[^>]*>.*?</style>", with: "", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<script[^>]*>.*?</script>", with: "", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<!--.*?-->", with: "", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<head[^>]*>.*?</head>", with: "", options: [.regularExpression, .caseInsensitive])
+
+        text = text.replacingOccurrences(of: "<br[^>]*>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<p[^>]*>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "</p>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<div[^>]*>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "</div>", with: "\n", options: [.regularExpression, .caseInsensitive])
+
+        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+
+        text = text.replacingOccurrences(of: "&nbsp;", with: " ", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&lt;", with: "<", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&gt;", with: ">", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&quot;", with: "\"", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&#39;", with: "'", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&apos;", with: "'", options: .caseInsensitive)
+        text = text.replacingOccurrences(of: "&#\\d+;", with: " ", options: .regularExpression)
+        text = text.replacingOccurrences(of: "&[a-zA-Z]+;", with: " ", options: .regularExpression)
+
+        return text
     }
 }
 
 enum AnalyzerError: Error, CustomStringConvertible {
-    case modelUnavailable
+    case invalidResponse
 
     var description: String {
         switch self {
-        case .modelUnavailable:
-            return "Apple Language Model is not available. Requires macOS 15+ with Apple Intelligence enabled."
+        case .invalidResponse:
+            return "OpenAI API returned invalid response"
         }
     }
 }

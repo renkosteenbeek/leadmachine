@@ -2,7 +2,6 @@ import ArgumentParser
 import Foundation
 import Darwin
 
-@available(macOS 26.0, *)
 struct DaemonCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "daemon",
@@ -25,7 +24,7 @@ struct DaemonCommand: AsyncParsableCommand {
         let apiClient = GraphAPIClient(authenticator: authenticator, config: config)
         print("✓ API Client initialized")
 
-        let analyzer = try CPQLeadAnalyzer()
+        let analyzer = CPQLeadAnalyzer(apiKey: config.openAIKey)
         print("✓ LLM Analyzer initialized\n")
 
         let mailService = MailService(apiClient: apiClient, analyzer: analyzer, config: config)
