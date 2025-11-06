@@ -107,7 +107,7 @@ actor MailService {
             if !dryRun {
                 try await apiClient.forwardMessage(
                     messageId: message.id,
-                    to: [config.adminEmail],
+                    to: config.adminEmails,
                     comment: comment
                 )
             }

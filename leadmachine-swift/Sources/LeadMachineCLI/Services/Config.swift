@@ -5,7 +5,7 @@ struct Config {
     let clientSecret: String
     let tenantId: String
     let userEmail: String
-    let adminEmail: String
+    let adminEmails: [String]
     let openAIKey: String
 
     static func load() throws -> Config {
@@ -34,17 +34,22 @@ struct Config {
               let clientSecret = env["GRAPH_CLIENT_SECRET"],
               let tenantId = env["GRAPH_TENANT_ID"],
               let userEmail = env["SENDER_EMAIL"],
-              let adminEmail = env["ADMIN_EMAIL"],
+              let adminEmailsStr = env["ADMIN_EMAILS"],
               let openAIKey = env["OPENAI_API_KEY"] else {
             throw ConfigError.missingRequiredFields
         }
+
+        let adminEmails = adminEmailsStr
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
 
         return Config(
             clientId: clientId,
             clientSecret: clientSecret,
             tenantId: tenantId,
             userEmail: userEmail,
-            adminEmail: adminEmail,
+            adminEmails: adminEmails,
             openAIKey: openAIKey
         )
     }
@@ -59,7 +64,7 @@ enum ConfigError: Error, CustomStringConvertible {
         case .fileNotFound:
             return ".env file not found. Make sure you're running from the correct directory."
         case .missingRequiredFields:
-            return "Missing required fields in .env file (GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, GRAPH_TENANT_ID, SENDER_EMAIL, ADMIN_EMAIL, OPENAI_API_KEY)"
+            return "Missing required fields in .env file (GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, GRAPH_TENANT_ID, SENDER_EMAIL, ADMIN_EMAILS, OPENAI_API_KEY)"
         }
     }
 }
