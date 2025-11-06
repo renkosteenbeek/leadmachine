@@ -1,56 +1,34 @@
-# LeadMachine - Automated CPQ Lead Detection
+# LeadMachine - Geautomatiseerde CPQ Lead Detectie
 
-Automated email processing system that uses Microsoft Graph API and OpenAI GPT-5 to detect and forward potential HiveCPQ implementation leads.
+Geautomatiseerd emailverwerkingssysteem dat Microsoft Graph API en OpenAI GPT-5 gebruikt om potentiële HiveCPQ implementatie leads te detecteren en doorsturen.
 
 ## Features
 
-✅ **Microsoft Graph API Integration**
-- OAuth client credentials authentication
-- Read emails from specific folders
-- Move emails between folders
-- Forward to multiple recipients with custom HTML content
+- Microsoft Graph API integratie (lezen, verplaatsen, doorsturen)
+- OpenAI GPT-5 analyse voor lead kwalificatie
+- Doorsturen naar meerdere ontvangers met HTML analyse
+- CLI commando's: process, daemon, restore
+- macOS daemon met automatische start bij login
+- Gebruikt alleen AI credits wanneer emails aanwezig zijn
 
-✅ **OpenAI GPT-5 Integration**
-- Advanced AI analysis for lead qualification
-- Structured JSON output with reasoning and summary
-- Only uses API credits when emails are present
-- Optimized prompts for HiveCPQ lead detection
+## Vereisten
 
-✅ **CLI Commands**
-- `process` - One-time email processing
-- `daemon` - Continuous monitoring (custom interval)
-- `restore` - Restore emails for testing
-
-✅ **Smart Processing**
-- Processes full email body (HTML stripped, truncated to 4000 chars)
-- Forwards to multiple admin emails
-- Comprehensive logging
-- Dry-run mode for testing
-
-✅ **macOS Daemon**
-- Runs automatically at startup
-- Configurable interval (default: 30 minutes)
-- No sudo required
-- Logs to `~/Library/Logs/LeadMachine/`
-
-## Prerequisites
-
-- macOS 13.0+ (any Intel/Apple Silicon)
+- macOS 13.0+
 - Swift 6.2+
 - Microsoft Graph API credentials (Azure AD)
 - OpenAI API key
-- Mailbox folder structure: `Inbox/leadmachine` and `Inbox/leadmachine/processed`
+- Mailbox folders: `Inbox/leadmachine` en `Inbox/leadmachine/processed`
 
-## Installation
+## Installatie
 
-### 1. Clone & Configure
+### 1. Configuratie
 
 ```bash
 cd ~/docker/leadmachine
 cp .env.example .env
 ```
 
-Edit `.env`:
+Bewerk `.env`:
 ```bash
 GRAPH_CLIENT_ID=your-client-id-here
 GRAPH_CLIENT_SECRET=your-client-secret-here
@@ -74,317 +52,248 @@ cd ..
 ./leadmachine-swift/.build/release/LeadMachineCLI process --dry-run --limit 1
 ```
 
-### 4. Install as Daemon (Auto-start)
+### 4. Installeer als Daemon
 
 ```bash
-# Fix LaunchAgents directory ownership (one time)
+# Fix directory ownership (eenmalig)
 sudo chown $USER:staff ~/Library/LaunchAgents/
 
-# Copy plist file
+# Kopieer plist
 cp com.configurewise.leadmachine.plist ~/Library/LaunchAgents/
 
-# Load daemon (starts at login + runs every 30 min)
+# Laad daemon (start bij login + elke 30 min)
 launchctl load ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 
-# Start immediately for testing
+# Start direct
 launchctl start com.configurewise.leadmachine
 
 # Check status
 launchctl list | grep leadmachine
-
-# View logs
-tail -f ~/Library/Logs/LeadMachine/stdout.log
 ```
 
-## Usage
+## Gebruik
 
-### Process Emails Once
+### Emails Verwerken
 
 ```bash
 cd ~/docker/leadmachine
+
+# Eenmalig verwerken
 ./leadmachine-swift/.build/release/LeadMachineCLI process
-```
 
-### Process with Limit
-
-```bash
+# Met limiet
 ./leadmachine-swift/.build/release/LeadMachineCLI process --limit 5
-```
 
-### Dry Run (Preview)
-
-```bash
+# Dry-run (preview)
 ./leadmachine-swift/.build/release/LeadMachineCLI process --dry-run
 ```
 
-### Run as Daemon (Manual)
+### Emails Terugzetten (Testing)
 
 ```bash
-# Check every 5 minutes
-./leadmachine-swift/.build/release/LeadMachineCLI daemon --interval 300
-
-# Default: every 5 minutes
-./leadmachine-swift/.build/release/LeadMachineCLI daemon
-```
-
-### Restore Emails for Testing
-
-```bash
-# Restore 1 email
+# 1 email terugzetten
 ./leadmachine-swift/.build/release/LeadMachineCLI restore
 
-# Restore 5 emails
+# Meerdere terugzetten
 ./leadmachine-swift/.build/release/LeadMachineCLI restore --count 5
 
-# Restore all
+# Alles terugzetten
 ./leadmachine-swift/.build/release/LeadMachineCLI restore --all
 ```
 
-## Daemon Management
+## Daemon Beheer
 
-### Check Status
+### Status Checken
 
 ```bash
 launchctl list | grep leadmachine
 ```
 
-Output: `PID  Status  Label`
-- If PID shown → running
-- Status 0 → successful last run
-
-### View Logs
+### Logs Bekijken
 
 ```bash
-# Live stdout
+# Live logs (stdout)
 tail -f ~/Library/Logs/LeadMachine/stdout.log
 
-# Live stderr (includes info logs)
+# Live logs (stderr met info)
 tail -f ~/Library/Logs/LeadMachine/stderr.log
-
-# All logs
-cat ~/Library/Logs/LeadMachine/*.log
 ```
 
-### Stop Daemon
+### Daemon Stoppen/Herstarten
 
 ```bash
+# Stoppen
 launchctl unload ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
-```
 
-### Restart Daemon
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
+# Herstarten
 launchctl load ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 ```
 
-### Change Interval
+### Interval Wijzigen
 
-Edit `~/Library/LaunchAgents/com.configurewise.leadmachine.plist`:
+Bewerk `~/Library/LaunchAgents/com.configurewise.leadmachine.plist`:
 ```xml
 <key>StartInterval</key>
-<integer>1800</integer>  <!-- 30 minutes in seconds -->
+<integer>1800</integer>  <!-- 30 minuten (in seconden) -->
 ```
 
-Then restart:
+Herlaad:
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 launchctl load ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 ```
 
-## How It Works
+## Hoe Het Werkt
 
-1. **Authenticate** - OAuth client credentials flow with Microsoft Graph
-2. **Read** - Fetch unread emails from `Inbox/leadmachine` folder
-3. **Analyze** - Each email analyzed by OpenAI GPT-5 for CPQ lead signals
-4. **Forward** - If lead detected → forward to all admin emails with HTML analysis
-5. **Move** - All processed emails moved to `Inbox/leadmachine/processed`
+1. **Authenticatie** - OAuth met Microsoft Graph
+2. **Lezen** - Emails ophalen uit `Inbox/leadmachine`
+3. **Analyseren** - GPT-5 analyseert elke email op CPQ lead signalen
+4. **Doorsturen** - Bij lead → doorsturen naar alle admin emails met HTML analyse
+5. **Verplaatsen** - Alle emails naar `Inbox/leadmachine/processed`
 
-### Lead Detection Criteria
+### Lead Detectie Criteria
 
-GPT-5 checks for:
-- **Manufacturing companies** with own production (not distributors)
-- **Configuration needs** - portal, configurator, product variants
-- **Complex products** requiring customer options/choices
+GPT-5 controleert op:
+- **Manufacturing bedrijven** met eigen productie (geen handelaren)
+- **Configuratie behoefte** - portal, configurator, productvarianten
+- **Complexe producten** met klantopties
 
-Examples of valid leads:
-- Metal manufacturer seeking portal for part configuration
-- Door manufacturer wanting online configurator for dealers
-- HVAC producer needing complex product configuration system
+✅ **Goede leads:**
+- Metaalfabrikant zoekt portal voor plaatwerk configuratie
+- Deurenfabrikant wil online configurator voor dealers
+- HVAC producent zoekt complexe productconfiguratie systeem
 
-Examples of non-leads:
-- Distributors seeking CRM (no production)
-- WMS/logistics systems (no configuration aspect)
-- Simple ERP without variants
-- Spam/notifications
+❌ **Geen leads:**
+- Distributeurs die CRM zoeken
+- WMS/logistiek systemen
+- Simpele ERP zonder varianten
+- Spam
 
-## Configuration
+## Configuratie
 
-### Multiple Admin Emails
-
-The system forwards detected leads to multiple recipients:
+### Meerdere Admin Emails
 
 ```bash
 ADMIN_EMAILS=email1@company.com,email2@company.com,email3@company.com
 ```
 
-All recipients receive:
-- Original email as forward
-- HTML analysis with reasoning and summary
-- Styled with color-coded sections
+Alle ontvangers krijgen:
+- Originele email als forward
+- HTML analyse met reasoning en samenvatting
+- Gekleurde secties
 
-### API Costs
+### API Kosten
 
-**Microsoft Graph API**: Free (included with Microsoft 365)
+**Microsoft Graph API**: Gratis (bij Microsoft 365)
 
-**OpenAI GPT-5 API**: Pay per use
-- Only charged when emails are present
-- ~$0.01-0.05 per email analyzed
-- Example: 10 emails/day = ~$10-15/month
+**OpenAI GPT-5**: Pay-per-use
+- Alleen kosten bij aanwezige emails
+- ~€0.01-0.05 per email
+- Voorbeeld: 10 emails/dag ≈ €10-15/maand
 
-**Cost optimization:**
-- No emails = no API calls = $0
-- Daemon checks folders first before analyzing
-- Full body analysis (4000 chars max) for accuracy
-
-## Project Structure
-
-```
-leadmachine/
-├── .env                              # Credentials (gitignored)
-├── .env.example                      # Template
-├── README.md                         # This file
-├── com.configurewise.leadmachine.plist  # LaunchAgent config
-│
-└── leadmachine-swift/                # Swift CLI application
-    ├── Package.swift                 # Dependencies
-    ├── Sources/LeadMachineCLI/
-    │   ├── LeadMachineCLI.swift     # Main entry point
-    │   ├── Models/
-    │   │   ├── Message.swift        # Email model
-    │   │   ├── Folder.swift         # Folder model
-    │   │   ├── CPQLeadDecision.swift # LLM response
-    │   │   └── TokenResponse.swift  # Auth token
-    │   ├── Services/
-    │   │   ├── Config.swift         # .env loader
-    │   │   ├── Authenticator.swift  # OAuth handler
-    │   │   ├── GraphAPIClient.swift # Microsoft Graph
-    │   │   ├── CPQLeadAnalyzer.swift # OpenAI GPT-5
-    │   │   └── MailService.swift    # Orchestration
-    │   └── Commands/
-    │       ├── ProcessCommand.swift  # process command
-    │       ├── DaemonCommand.swift   # daemon command
-    │       └── RestoreCommand.swift  # restore command
-    └── .build/release/
-        └── LeadMachineCLI           # Compiled binary
-```
+**Optimalisatie:**
+- Geen emails = geen API calls = €0
+- Daemon checkt eerst folders
+- Max 4000 karakters per email
 
 ## Troubleshooting
 
 ### "Missing required fields in .env"
-Check that `.env` contains all fields:
-- GRAPH_CLIENT_ID
-- GRAPH_CLIENT_SECRET
-- GRAPH_TENANT_ID
-- SENDER_EMAIL
-- ADMIN_EMAILS (comma-separated)
-- OPENAI_API_KEY
+Check `.env` bevat: GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, GRAPH_TENANT_ID, SENDER_EMAIL, ADMIN_EMAILS, OPENAI_API_KEY
 
 ### "Authentication failed"
-- Verify credentials in Azure Portal
-- Required Graph API permissions:
-  - Mail.Read (Application)
-  - Mail.Send (Application)
-  - Mail.ReadWrite (Application)
-- Grant admin consent in Azure Portal
+- Controleer credentials in Azure Portal
+- Vereiste permissions: Mail.Read, Mail.Send, Mail.ReadWrite (Application)
+- Grant admin consent
 
 ### "Folder not found"
-Create folders in Outlook/Mail:
+Maak folders in Outlook:
 ```
 Inbox
 └── leadmachine
     └── processed
 ```
 
-### Daemon not starting
+### Daemon start niet
 ```bash
-# Check if loaded
+# Check status
 launchctl list | grep leadmachine
 
-# Check logs for errors
+# Check logs
 cat ~/Library/Logs/LeadMachine/stderr.log
 
-# Verify plist syntax
-plutil -lint ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
-
-# Reload
+# Herlaad
 launchctl unload ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 launchctl load ~/Library/LaunchAgents/com.configurewise.leadmachine.plist
 ```
 
 ### OpenAI API errors
-- Verify API key is valid: https://platform.openai.com/api-keys
-- Check quota/billing: https://platform.openai.com/usage
-- GPT-5 requires specific API access tier
-
-### No emails forwarded but logs say "lead detected"
-- Check dry-run mode is OFF
-- Verify ADMIN_EMAILS in .env
-- Check spam folders of recipients
-- View logs for forward success/failure
+- Controleer API key: https://platform.openai.com/api-keys
+- Check quota: https://platform.openai.com/usage
 
 ## Development
 
 ### Tech Stack
-- **Swift 6.2** - Modern Swift with async/await actors
-- **OpenAI Swift SDK** - MacPaw/OpenAI package
-- **ArgumentParser** - CLI argument handling
-- **Swift Log** - Structured logging
-- **URLSession** - HTTP client for Graph API
+- Swift 6.2 (async/await actors)
+- MacPaw OpenAI Swift SDK
+- ArgumentParser (CLI)
+- Swift Log
+- URLSession (Graph API)
 
-### Building from Source
+### Build
 
 ```bash
 cd leadmachine-swift
-swift build                    # Debug build
-swift build -c release         # Release build (optimized)
-swift run LeadMachineCLI --help  # Run from source
+swift build                    # Debug
+swift build -c release         # Release (optimized)
 ```
 
 ### Testing Workflow
 
 ```bash
-# 1. Dry-run to preview
+# 1. Preview
 ./leadmachine-swift/.build/release/LeadMachineCLI process --dry-run
 
-# 2. Process one email
+# 2. Proces 1 email
 ./leadmachine-swift/.build/release/LeadMachineCLI process --limit 1
 
-# 3. Check recipient inbox for forwarded email
+# 3. Check inbox ontvangers
 
-# 4. Restore email for reprocessing
+# 4. Terugzetten
 ./leadmachine-swift/.build/release/LeadMachineCLI restore
-
-# 5. Iterate on prompt in CPQLeadAnalyzer.swift if needed
 ```
 
-### Modifying LLM Prompt
+### LLM Prompt Aanpassen
 
-Edit `leadmachine-swift/Sources/LeadMachineCLI/Services/CPQLeadAnalyzer.swift`:
-- `systemPrompt` - Instructions and examples for GPT-5
-- `buildPrompt()` - User message format
+Bewerk `leadmachine-swift/Sources/LeadMachineCLI/Services/CPQLeadAnalyzer.swift`:
+- `systemPrompt` - Instructies en voorbeelden voor GPT-5
+- `buildPrompt()` - User message formaat
 
-Rebuild after changes:
+Rebuild:
 ```bash
 cd leadmachine-swift
 swift build -c release
 ```
 
+## Project Structuur
+
+```
+leadmachine/
+├── .env                              # Credentials (gitignored)
+├── .env.example                      # Template
+├── README.md                         # Dit bestand
+├── com.configurewise.leadmachine.plist  # LaunchAgent config
+│
+└── leadmachine-swift/
+    ├── Package.swift
+    ├── Sources/LeadMachineCLI/
+    │   ├── Models/              # Message, Folder, CPQLeadDecision
+    │   ├── Services/            # Config, Auth, GraphAPI, Analyzer
+    │   └── Commands/            # Process, Daemon, Restore
+    └── .build/release/
+        └── LeadMachineCLI       # Binary
+```
+
 ## License
 
-Private project - ConfigureWise
-
-## Credits
-
-Developed with Claude Code
-2025-11-06
+Private - ConfigureWise
