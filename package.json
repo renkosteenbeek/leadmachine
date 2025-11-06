@@ -1,0 +1,13 @@
+{
+  "name": "leadmachine",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node test-mail.js"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.16.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "dotenv": "^16.4.7"
+  }
+}

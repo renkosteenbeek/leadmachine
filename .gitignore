@@ -1,0 +1,39 @@
+# Credentials - NEVER COMMIT!
+.env
+*.env
+!.env.example
+
+# Swift
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+/tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.o
+*.so
+*.a
+*.dylib
